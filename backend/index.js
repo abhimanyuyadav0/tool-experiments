@@ -1,79 +1,93 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
+const dummyfileRouter = require("./routes");
 
 const app = express();
-
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
-
 const PORT = 8000;
+
 app.use(cors());
-// parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
 
-// parse application/json
-app.use(bodyParser.json());
+const upload = multer({ storage: multer.memoryStorage() });
+const jobs = {}; // in-memory status
 
-app.get("/test", (req, res) => {
-  console.log({ req });
-  res.send("Hello world");
-});
+// Helper: Merge all chunks
+async function mergeChunks(fileId, originalName, totalChunks) {
+  const chunkDir = path.join(__dirname, "chunks", fileId);
+  const finalPath = path.join(__dirname, "merged", originalName);
 
-const mergeChunks = async (fileName, totalChunks) => {
-  const chunkDir = __dirname + "/chunks";
-  const mergedFilePath = __dirname + "/merged_files";
+  fs.mkdirSync(path.join(__dirname, "merged"), { recursive: true });
+  const writeStream = fs.createWriteStream(finalPath);
 
-  if (!fs.existsSync(mergedFilePath)) {
-    fs.mkdirSync(mergedFilePath);
-  }
-
-  const writeStream = fs.createWriteStream(`${mergedFilePath}/${fileName}`);
   for (let i = 0; i < totalChunks; i++) {
-    const chunkFilePath = `${chunkDir}/${fileName}.part_${i}`;
-    const chunkBuffer = await fs.promises.readFile(chunkFilePath);
-    writeStream.write(chunkBuffer);
-    fs.unlinkSync(chunkFilePath); // Delete the individual chunk file after merging
+    const chunkPath = path.join(chunkDir, `part_${i}`);
+    const data = fs.readFileSync(chunkPath);
+    writeStream.write(data);
+    fs.unlinkSync(chunkPath);
   }
 
   writeStream.end();
-  console.log("Chunks merged successfully");
-};
+  fs.rmSync(chunkDir, { recursive: true, force: true });
+  console.log(`✅ Merged: ${originalName}`);
+}
 
+// Fake processing delay (2 minutes)
+function simulateProcessing(fileId) {
+  jobs[fileId].status = "processing";
+  setTimeout(() => {
+    jobs[fileId].status = "complete";
+    console.log(`✅ Processing complete for ${fileId}`);
+  }, 2 * 60 * 1000); // 2 minutes
+}
+
+// Upload route
 app.post("/upload", upload.single("file"), async (req, res) => {
-  console.log("Hit");
-  const chunk = req.file.buffer;
-  const chunkNumber = Number(req.body.chunkNumber); // Sent from the client
-  const totalChunks = Number(req.body.totalChunks); // Sent from the client
-  const fileName = req.body.originalname;
-
-  const chunkDir = __dirname + "/chunks"; // Directory to save chunks
-
-  if (!fs.existsSync(chunkDir)) {
-    fs.mkdirSync(chunkDir);
-  }
-
-  const chunkFilePath = `${chunkDir}/${fileName}.part_${chunkNumber}`;
-
   try {
-    await fs.promises.writeFile(chunkFilePath, chunk);
-    console.log(`Chunk ${chunkNumber}/${totalChunks} saved`);
+    const { fileId, chunkNumber, totalChunks, originalname } = req.body;
+    const buffer = req.file.buffer;
 
-    if (chunkNumber === totalChunks - 1) {
-      // If this is the last chunk, merge all chunks into a single file
-      await mergeChunks(fileName, totalChunks);
-      console.log("File merged successfully");
+    if (!jobs[fileId]) {
+      jobs[fileId] = {
+        filename: originalname,
+        status: "initialized",
+        progress: 0,
+      };
     }
 
-    res.status(200).json({ message: "Chunk uploaded successfully" });
-  } catch (error) {
-    console.error("Error saving chunk:", error);
-    res.status(500).json({ error: "Error saving chunk" });
+    jobs[fileId].status = "uploading";
+    jobs[fileId].progress = ((+chunkNumber + 1) / +totalChunks) * 100;
+
+    const chunkDir = path.join(__dirname, "chunks", fileId);
+    fs.mkdirSync(chunkDir, { recursive: true });
+
+    fs.writeFileSync(path.join(chunkDir, `part_${chunkNumber}`), buffer);
+    console.log(`📦 Saved chunk ${chunkNumber}/${totalChunks} for ${originalname}`);
+
+    if (+chunkNumber === +totalChunks - 1) {
+      await mergeChunks(fileId, originalname, +totalChunks);
+      jobs[fileId].status = "uploaded";
+      simulateProcessing(fileId);
+    }
+
+    res.json({ message: "Chunk received" });
+  } catch (err) {
+    console.error("❌ Upload failed:", err);
+    if (req.body.fileId) jobs[req.body.fileId].status = "error";
+    res.status(500).json({ error: "Upload failed" });
   }
 });
 
+// Polling status
+app.get("/status/:fileId", (req, res) => {
+  const job = jobs[req.params.fileId];
+  if (!job) return res.status(404).json({ error: "Not found" });
+  res.json(job);
+});
+app.use("/api",        dummyfileRouter);
 app.listen(PORT, () => {
-  console.log(`Port listening on ${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
