@@ -1,5 +1,5 @@
 'use client'
-import { Button, Card, DataTable, Dialog, ProgressBar, Spinner } from "@nmspl/nm-ui-lib";
+import { Button, Card, CardContent, DataTable, Dialog, ProgressBar, Spinner } from "@nmspl/nm-ui-lib";
 import React, { useEffect, useState } from "react";
 
 type FileStatus = "initialized" | "uploading" | "uploaded" | "processing" | "complete" | "error";
@@ -399,8 +399,8 @@ export default function ImportPage() {
                     shadow="md" 
                     hoverEffect
                   >
-                    <div className="p-4">
-                      <div className="flex justify-between items-start mb-3">
+                    <CardContent className="overflow-hidden">
+                      <div className="flex justify-between flex-wrap items-start mb-3">
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold">{dataset.name}</h3>
                           <p className="text-gray-400">
@@ -426,7 +426,7 @@ export default function ImportPage() {
                           <Spinner size="xs" /> Processing files... This may take up to 5 minutes per file.
                         </div>
                       )}
-                    </div>
+                    </CardContent>
                   </Card>
                 ))}
               </div>
