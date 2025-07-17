@@ -47,19 +47,24 @@ export default function ImportPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    // Sort files by size and pick the smallest
-    const sortedFiles = Array.from(files).sort((a, b) => a.size - b.size);
-    const file = sortedFiles[0];
-    const selected = [{
+    // For existing dataset, allow multiple; for new, only one
+    let filesToUpload = Array.from(files);
+    if (!selectedDataset) {
+      // Only one file for new dataset
+      filesToUpload = [filesToUpload[0]];
+    }
+    // Sort by size (smallest first)
+    filesToUpload = filesToUpload.sort((a, b) => a.size - b.size);
+    const selected = filesToUpload.map((file) => ({
       id: generateId(),
       file,
       name: file.name,
       status: "initialized" as FileStatus,
       progress: 0,
-    }];
+    }));
     setFiles(selected);
-    if (!selectedDataset) {
-      setDatasetName(file.name.replace(/\.[^/.]+$/, ""));
+    if (!selectedDataset && selected.length > 0) {
+      setDatasetName(selected[0].name.replace(/\.[^/.]+$/, ""));
     }
   };
 
@@ -75,11 +80,26 @@ export default function ImportPage() {
     formData.append("originalname", name);
     formData.append("folder", datasetName);
     setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "uploading", progress: 0 } : f));
-    await fetch("http://localhost:8000/upload", {
-      method: "POST",
-      body: formData,
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "http://localhost:8000/upload");
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = (event.loaded / event.total) * 100;
+          setFiles((prev) => prev.map((f) => f.id === id ? { ...f, progress: percent } : f));
+        }
+      };
+      xhr.onload = () => {
+        setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "uploaded", progress: 100 } : f));
+        resolve();
+      };
+      xhr.onerror = () => {
+        setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "error" } : f));
+        reject();
+      };
+      xhr.send(formData);
     });
-    setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "uploaded", progress: 100 } : f));
   };
 
   const startUploadAll = async () => {
@@ -92,12 +112,13 @@ export default function ImportPage() {
     setShowUploadDialog(false);
     setFiles([]);
     await loadDatasets();
+    // Don't auto-select dataset here (user stays on current view)
   };
 
   const pollStatus = () => {
     if (!files || files.length === 0) return;
-    
-    files.forEach(async (file) => {
+    // Only poll for files that are uploaded or processing
+    files.filter(file => ['uploaded', 'processing'].includes(file.status)).forEach(async (file) => {
       if (["complete", "error"].includes(file.status)) return;
       try {
         const res = await fetch(`http://localhost:8000/status/${file.id}`);
@@ -112,7 +133,8 @@ export default function ImportPage() {
           );
         }
       } catch (error) {
-        console.error("Error polling status:", error);
+        // Optionally, you can suppress 404 errors here
+        // console.error("Error polling status:", error);
       }
     });
   };
@@ -414,7 +436,7 @@ export default function ImportPage() {
             </label>
             <input 
               type="file" 
-              multiple={false} // Only allow one file at a time
+              multiple={!!selectedDataset} // Allow multiple for existing dataset
               onChange={handleFileChange}
               accept={allowedFileTypes.length > 0 ? allowedFileTypes.join(',') : undefined}
               className="w-full text-black"
