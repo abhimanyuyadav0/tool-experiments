@@ -162,7 +162,7 @@ const generateMockData = (filename) => {
 /* ------------------ Upload Endpoint ------------------ */
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const { fileId, chunkNumber, totalChunks, originalname, folder } = req.body;
+    const { fileId, originalname, folder } = req.body;
     const buffer = req.file.buffer;
 
     if (!jobs[fileId]) {
@@ -171,39 +171,28 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         folder: folder || getExtlessName(originalname),
         status: "initialized",
         progress: 0,
-        startTime: Date.now(), // Track upload+processing start time
+        startTime: Date.now(),
       };
     }
 
-    const chunkDir = path.join(__dirname, "chunks", fileId);
-    fs.mkdirSync(chunkDir, { recursive: true });
-    const chunkPath = path.join(chunkDir, `part_${chunkNumber}`);
-    fs.writeFileSync(chunkPath, buffer);
+    // Save file directly to merged folder
+    const outputDir = path.join(__dirname, "merged", jobs[fileId].folder);
+    fs.mkdirSync(outputDir, { recursive: true });
+    const finalPath = path.join(outputDir, originalname);
+    fs.writeFileSync(finalPath, buffer);
 
-    jobs[fileId].status = "uploading";
-    jobs[fileId].progress = ((+chunkNumber + 1) / +totalChunks) * 100;
+    jobs[fileId].status = "uploaded";
+    jobs[fileId].progress = 100;
 
-    if (+chunkNumber === +totalChunks - 1) {
-      await mergeChunks({
-        fileId,
-        folderName: jobs[fileId].folder,
-        fileName: originalname,
-        totalChunks: +totalChunks,
-      });
-      jobs[fileId].status = "uploaded";
-      jobs[fileId].progress = 100;
-      
-      // Log upload time only (not processing time)
-      if (jobs[fileId].startTime) {
-        const uploadEndTime = Date.now();
-        const uploadDurationSec = ((uploadEndTime - jobs[fileId].startTime) / 1000).toFixed(2);
-        console.log(`📤 File ${fileId} (${jobs[fileId].filename}) upload time: ${uploadDurationSec} seconds`);
-      }
-      
-      simulateProcessing(fileId);
+    // Log upload time only
+    if (jobs[fileId].startTime) {
+      const uploadEndTime = Date.now();
+      const uploadDurationSec = ((uploadEndTime - jobs[fileId].startTime) / 1000).toFixed(2);
+      console.log(`📤 File ${fileId} (${jobs[fileId].filename}) upload time: ${uploadDurationSec} seconds`);
     }
 
-    res.json({ message: "Chunk received" });
+    simulateProcessing(fileId);
+    res.json({ message: "File uploaded" });
   } catch (error) {
     console.error("❌ Upload failed:", error);
     if (req.body.fileId) jobs[req.body.fileId].status = "error";

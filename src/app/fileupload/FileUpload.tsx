@@ -47,38 +47,19 @@ export default function ImportPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
-    const selectedFiles = Array.from(files);
-    
-    // Check file types if dataset exists
-    if (selectedDataset && allowedFileTypes.length > 0) {
-      const invalidFiles = selectedFiles.filter((file) => {
-        const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
-        return !allowedFileTypes.includes(fileExt);
-      });
-      
-      if (invalidFiles.length > 0) {
-        alert(`Only ${allowedFileTypes.join(', ')} files are allowed for this dataset.`);
-        return;
-      }
-    }
-    
-    // For new datasets, only allow single file
-    const filesToProcess = selectedDataset ? selectedFiles : selectedFiles.slice(0, 1);
-    
-    const selected = filesToProcess.map((file) => ({
+    // Sort files by size and pick the smallest
+    const sortedFiles = Array.from(files).sort((a, b) => a.size - b.size);
+    const file = sortedFiles[0];
+    const selected = [{
       id: generateId(),
       file,
       name: file.name,
       status: "initialized" as FileStatus,
       progress: 0,
-    }));
-    
+    }];
     setFiles(selected);
-    
-    // Set default dataset name from first file (only if no dataset selected)
-    if (selected.length > 0 && !selectedDataset) {
-      setDatasetName(selected[0].name.replace(/\.[^/.]+$/, ""));
+    if (!selectedDataset) {
+      setDatasetName(file.name.replace(/\.[^/.]+$/, ""));
     }
   };
 
@@ -86,61 +67,31 @@ export default function ImportPage() {
     setFiles((prev) => prev ? prev.filter((f) => f.id !== id) : []);
   };
 
-  const uploadChunks = async (uploadFile:any) => {
+  const uploadSingleFile = async (uploadFile: UploadFile) => {
     const { file, id, name } = uploadFile;
-    const chunkSize = 5 * 1024 * 1024;
-    const totalChunks = Math.ceil(file.size / chunkSize);
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
-      const formData = new FormData();
-      formData.append("file", chunk);
-      formData.append("fileId", id);
-      formData.append("chunkNumber", i.toString());
-      formData.append("totalChunks", totalChunks.toString());
-      formData.append("originalname", name);
-      formData.append("folder", datasetName);
-
-      await fetch("http://localhost:8000/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      setFiles((prev) =>
-        prev ? prev.map((f) =>
-          f.id === id
-            ? {
-                ...f,
-                status: "uploading",
-                progress: ((i + 1) / totalChunks) * 100,
-              }
-            : f
-        ) : []
-      );
-    }
-
-    setFiles((prev) =>
-      prev ? prev.map((f) => (f.id === id ? { ...f, status: "uploaded" } : f)) : []
-    );
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileId", id);
+    formData.append("originalname", name);
+    formData.append("folder", datasetName);
+    setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "uploading", progress: 0 } : f));
+    await fetch("http://localhost:8000/upload", {
+      method: "POST",
+      body: formData,
+    });
+    setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "uploaded", progress: 100 } : f));
   };
 
   const startUploadAll = async () => {
     setIsUploading(true);
     const pending = files ? files.filter((f) => f.status === "initialized") : [];
-    
     for (const file of pending) {
-      await uploadChunks(file);
+      await uploadSingleFile(file);
     }
-    
     setIsUploading(false);
     setShowUploadDialog(false);
-    
-    // Clear files and refresh datasets immediately
     setFiles([]);
     await loadDatasets();
-    
-    // Automatically select the dataset after upload
-    setSelectedDataset(datasetName);
   };
 
   const pollStatus = () => {
@@ -463,7 +414,7 @@ export default function ImportPage() {
             </label>
             <input 
               type="file" 
-              multiple={!!selectedDataset}
+              multiple={false} // Only allow one file at a time
               onChange={handleFileChange}
               accept={allowedFileTypes.length > 0 ? allowedFileTypes.join(',') : undefined}
               className="w-full text-black"
