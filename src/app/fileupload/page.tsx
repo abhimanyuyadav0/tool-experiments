@@ -1,5 +1,5 @@
 import React from "react";
-import FileUpload from "./FileUpload";
+import ImportPage from "./FileUpload";
 
 const FileUploadPage = () => {
   return (
@@ -9,7 +9,7 @@ const FileUploadPage = () => {
       </h1>
       <div className="">
         <div>
-          <FileUpload />
+          <ImportPage />
         </div>
       </div>
     </div>

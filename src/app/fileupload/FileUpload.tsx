@@ -1,5 +1,5 @@
 'use client'
-import { Button, Card, DataTable, Dialog, ProgressBar } from "@nmspl/nm-ui-lib";
+import { Button, Card, DataTable, Dialog, ProgressBar, Spinner } from "@nmspl/nm-ui-lib";
 import React, { useEffect, useState } from "react";
 
 type FileStatus = "initialized" | "uploading" | "uploaded" | "processing" | "complete" | "error";
@@ -18,16 +18,24 @@ interface Dataset {
   recordCount: number;
   createdAt: string;
   status: string;
+  lastUpdated?: string;
+}
+
+interface DatasetStatus {
+  status: string;
+  processingFiles: number;
+  totalFiles: number;
+  lastUpdated: string;
 }
 
 export default function ImportPage() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<string | null>(null);
+  const [datasetStatus, setDatasetStatus] = useState<DatasetStatus | null>(null);
   const [tableData, setTableData] = useState([]);
   const [tableMeta, setTableMeta] = useState({ totalRecords: 0, totalPages: 0, currentPage: 1 });
   const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [datasetName, setDatasetName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,40 +44,46 @@ export default function ImportPage() {
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
-  const handleFileChange = (e:any) => {
-  const selectedFiles:any = Array.from(e.target.files || []);
-  
-  // Check file types if dataset exists
-  if (selectedDataset && allowedFileTypes.length > 0) {
-    const invalidFiles = selectedFiles.filter((file:any) => {
-      const fileExt:any = '.' + file.name.split('.').pop().toLowerCase();
-      return !allowedFileTypes.includes(fileExt);
-    });
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     
-    if (invalidFiles.length > 0) {
-      alert(`Only ${allowedFileTypes.join(', ')} files are allowed for this dataset.`);
-      return;
+    const selectedFiles = Array.from(files);
+    
+    // Check file types if dataset exists
+    if (selectedDataset && allowedFileTypes.length > 0) {
+      const invalidFiles = selectedFiles.filter((file) => {
+        const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
+        return !allowedFileTypes.includes(fileExt);
+      });
+      
+      if (invalidFiles.length > 0) {
+        alert(`Only ${allowedFileTypes.join(', ')} files are allowed for this dataset.`);
+        return;
+      }
     }
-  }
-  
-  const selected = selectedFiles.map((file:any) => ({
-    id: generateId(),
-    file,
-    name: file.name,
-    status: "initialized",
-    progress: 0,
-  }));
-  
-  setFiles(selected);
-  
-  // Set default dataset name from first file (only if no dataset selected)
-  if (selected.length > 0 && !selectedDataset) {
-    setDatasetName(selected[0].name.replace(/\.[^/.]+$/, ""));
-  }
-};
+    
+    // For new datasets, only allow single file
+    const filesToProcess = selectedDataset ? selectedFiles : selectedFiles.slice(0, 1);
+    
+    const selected = filesToProcess.map((file) => ({
+      id: generateId(),
+      file,
+      name: file.name,
+      status: "initialized" as FileStatus,
+      progress: 0,
+    }));
+    
+    setFiles(selected);
+    
+    // Set default dataset name from first file (only if no dataset selected)
+    if (selected.length > 0 && !selectedDataset) {
+      setDatasetName(selected[0].name.replace(/\.[^/.]+$/, ""));
+    }
+  };
 
   const removeFile = (id:any) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
+    setFiles((prev) => prev ? prev.filter((f) => f.id !== id) : []);
   };
 
   const uploadChunks = async (uploadFile:any) => {
@@ -93,7 +107,7 @@ export default function ImportPage() {
       });
 
       setFiles((prev) =>
-        prev.map((f) =>
+        prev ? prev.map((f) =>
           f.id === id
             ? {
                 ...f,
@@ -101,29 +115,37 @@ export default function ImportPage() {
                 progress: ((i + 1) / totalChunks) * 100,
               }
             : f
-        )
+        ) : []
       );
     }
 
     setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, status: "uploaded" } : f))
+      prev ? prev.map((f) => (f.id === id ? { ...f, status: "uploaded" } : f)) : []
     );
   };
 
   const startUploadAll = async () => {
-  setIsUploading(true);
-  const pending = files.filter((f) => f.status === "initialized");
-  
-  for (const file of pending) {
-    await uploadChunks(file);
-  }
-  
-  setIsUploading(false);
-  setShowUploadDialog(false);
-  setShowPreviewDialog(true);
-};
+    setIsUploading(true);
+    const pending = files ? files.filter((f) => f.status === "initialized") : [];
+    
+    for (const file of pending) {
+      await uploadChunks(file);
+    }
+    
+    setIsUploading(false);
+    setShowUploadDialog(false);
+    
+    // Clear files and refresh datasets immediately
+    setFiles([]);
+    await loadDatasets();
+    
+    // Automatically select the dataset after upload
+    setSelectedDataset(datasetName);
+  };
 
   const pollStatus = () => {
+    if (!files || files.length === 0) return;
+    
     files.forEach(async (file) => {
       if (["complete", "error"].includes(file.status)) return;
       try {
@@ -131,11 +153,11 @@ export default function ImportPage() {
         if (res.ok) {
           const data = await res.json();
           setFiles((prev) =>
-            prev.map((f) =>
+            prev ? prev.map((f) =>
               f.id === file.id
                 ? { ...f, status: data.status, progress: data.progress }
                 : f
-            )
+            ) : []
           );
         }
       } catch (error) {
@@ -148,9 +170,21 @@ export default function ImportPage() {
     try {
       const res = await fetch("http://localhost:8000/api/datasets");
       const data = await res.json();
-      setDatasets(data.datasets);
+      setDatasets(data.datasets || []);
     } catch (error) {
       console.error("Error loading datasets:", error);
+      setDatasets([]);
+    }
+  };
+
+  const loadDatasetStatus = async (datasetName: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/datasets/${datasetName}/status`);
+      const data = await res.json();
+      setDatasetStatus(data || null);
+    } catch (error) {
+      console.error("Error loading dataset status:", error);
+      setDatasetStatus(null);
     }
   };
 
@@ -160,19 +194,21 @@ export default function ImportPage() {
         `http://localhost:8000/api/datasets/${datasetName}/data?page=${page}&limit=10&search=${search}`
       );
       const data = await res.json();
-      setTableData(data.data);
+      setTableData(data.data || []);
       setTableMeta({
-        totalRecords: data.totalRecords,
-        totalPages: data.totalPages,
-        currentPage: data.currentPage
+        totalRecords: data.totalRecords || 0,
+        totalPages: data.totalPages || 0,
+        currentPage: data.currentPage || 1
       });
     } catch (error) {
       console.error("Error loading table data:", error);
+      setTableData([]);
+      setTableMeta({ totalRecords: 0, totalPages: 0, currentPage: 1 });
     }
   };
 
   useEffect(() => {
-    if (files.length > 0) {
+    if (files && files.length > 0) {
       const interval = setInterval(pollStatus, 2000);
       return () => clearInterval(interval);
     }
@@ -180,49 +216,45 @@ export default function ImportPage() {
 
   useEffect(() => {
     loadDatasets();
+    // Set up interval to refresh datasets every 5 seconds to update processing status
+    const interval = setInterval(loadDatasets, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (selectedDataset) {
       loadTableData(selectedDataset, currentPage, searchQuery);
+      loadDatasetStatus(selectedDataset);
+      
+      // Set up interval to refresh dataset status every 10 seconds
+      const interval = setInterval(() => {
+        loadDatasetStatus(selectedDataset);
+      }, 10000);
+      
+      return () => clearInterval(interval);
     }
   }, [selectedDataset, currentPage, searchQuery]);
 
-  const handleSavePreview = async () => {
-    // Update file names if changed
-    for (const file of files) {
-      if (file.name !== file.file.name) {
-        await fetch(`http://localhost:8000/api/datasets/${datasetName}/rename-file`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileId: file.id, newName: file.name })
-        });
+  // Modify the import button click handler:
+  const handleImportClick = async () => {
+    if (selectedDataset) {
+      // Load allowed file types for existing dataset
+      try {
+        const res = await fetch(`http://localhost:8000/api/datasets/${selectedDataset}/allowed-types`);
+        const data = await res.json();
+        setAllowedFileTypes(data.allowedFileTypes || []);
+        setDatasetName(selectedDataset);
+      } catch (error) {
+        console.error("Error loading allowed file types:", error);
+        setAllowedFileTypes([]);
       }
+    } else {
+      setAllowedFileTypes([]);
+      setDatasetName("");
     }
-    
-    setShowPreviewDialog(false);
-    setFiles([]);
-    await loadDatasets();
-    setSelectedDataset(datasetName);
+    setShowUploadDialog(true);
   };
-// Modify the import button click handler:
-const handleImportClick = async () => {
-  if (selectedDataset) {
-    // Load allowed file types for existing dataset
-    try {
-      const res = await fetch(`http://localhost:8000/api/datasets/${selectedDataset}/allowed-types`);
-      const data = await res.json();
-      setAllowedFileTypes(data.allowedFileTypes);
-      setDatasetName(selectedDataset);
-    } catch (error) {
-      console.error("Error loading allowed file types:", error);
-    }
-  } else {
-    setAllowedFileTypes([]);
-    setDatasetName("");
-  }
-  setShowUploadDialog(true);
-};
+
   const handleSearch = (e:any) => {
     setSearchQuery(e.target.value);
     setCurrentPage(1);
@@ -244,8 +276,16 @@ const handleImportClick = async () => {
     { key: 'source', title: 'Source File' }
   ];
 
-  const allFilesComplete = files.every(f => f.status === "complete");
-  const hasProcessingFiles = files.some(f => f.status === "processing");
+  const hasProcessingFiles = files && files.some(f => f.status === "processing");
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'complete': return 'bg-green-600';
+      case 'processing': return 'bg-yellow-600';
+      case 'error': return 'bg-red-600';
+      default: return 'bg-gray-600';
+    }
+  };
 
   return (
     <div className="relative p-6">
@@ -266,7 +306,9 @@ const handleImportClick = async () => {
         </div>
       </div>
 
-      {/* Status Banner */}
+      
+
+      {/* Status Banner for Upload Files */}
       {hasProcessingFiles && (
         <div className="bg-yellow-600 text-black p-3 rounded mb-4">
           Processing files... Please wait for completion.
@@ -276,6 +318,26 @@ const handleImportClick = async () => {
       {/* Main Content */}
       {selectedDataset ? (
         <div className="space-y-4">
+          {/* Dataset Info Card */}
+          <Card shadow="sm">
+            <div className="p-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedDataset}</h3>
+                  <p className="text-gray-400">
+                    {datasetStatus ? datasetStatus.totalFiles : 0} files • {tableMeta.totalRecords} records
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {datasetStatus?.status === 'processing' && <Spinner size="xs" />}
+                  <span className={`px-3 py-1 rounded text-sm ${getStatusColor(datasetStatus?.status || 'complete')}`}>
+                    {datasetStatus?.status || 'complete'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {/* Search and Pagination Controls */}
           <div className="flex justify-between items-center">
             <input
@@ -283,7 +345,7 @@ const handleImportClick = async () => {
               placeholder="Search records..."
               value={searchQuery}
               onChange={handleSearch}
-              className="px-3 py-2 bg-gray-800  rounded border border-gray-600"
+              className="px-3 py-2 bg-gray-800 rounded border border-gray-600"
             />
             <div className="text-sm text-gray-400">
               Showing {tableMeta.currentPage} of {tableMeta.totalPages} pages 
@@ -319,37 +381,51 @@ const handleImportClick = async () => {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center h-full">
-          {datasets.length === 0 ? (
+          {!datasets || datasets.length === 0 ? (
             <div className="text-center">
               <p className="text-xl mb-4">No data yet</p>
               <p className="text-gray-400">Click "Import" to upload your first dataset</p>
             </div>
           ) : (
             <div className="space-y-4 w-full max-w-4xl">
-              <h2 className="text-xl mb-4">Your Datasets</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl mb-4">Your Datasets</h2>
+              </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {datasets.map((dataset) => (
                   <Card 
                     key={dataset.name}
                     onClick={() => setSelectedDataset(dataset.name)}
-                    shadow="md" hoverEffect>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="text-lg font-semibold">{dataset.name}</h3>
-                        <p className="text-gray-400">
-                          {dataset.fileCount} files • {dataset.recordCount} records
-                        </p>
+                    shadow="md" 
+                    hoverEffect
+                  >
+                    <div className="p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold">{dataset.name}</h3>
+                          <p className="text-gray-400">
+                            {dataset.fileCount} files • {dataset.recordCount} records
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs ${getStatusColor(dataset.status)}`}>
+                            {dataset.status}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-400">
-                          {new Date(dataset.createdAt).toLocaleDateString()}
-                        </p>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          dataset.status === 'complete' ? 'bg-green-600' : 'bg-yellow-600'
-                        }`}>
-                          {dataset.status}
-                        </span>
+                      
+                      <div className="text-sm text-gray-500">
+                        <p>Created: {new Date(dataset.createdAt).toLocaleDateString()}</p>
+                        {dataset.lastUpdated && (
+                          <p>Updated: {new Date(dataset.lastUpdated).toLocaleString()}</p>
+                        )}
                       </div>
+                      
+                      {dataset.status === 'processing' && (
+                        <div className="mt-3 p-2 bg-yellow-100 rounded text-yellow-800 text-sm">
+                          <Spinner size="xs" /> Processing files... This may take up to 5 minutes per file.
+                        </div>
+                      )}
                     </div>
                   </Card>
                 ))}
@@ -360,7 +436,11 @@ const handleImportClick = async () => {
       )}
 
       {/* Upload Dialog */}
-      <Dialog isOpenDialog={showUploadDialog} onCloseDialog={() => setShowUploadDialog(false)}>
+      <Dialog isOpenDialog={showUploadDialog} onCloseDialog={() => {
+        setShowUploadDialog(false);
+        // Refresh datasets when dialog closes to show any new datasets
+        loadDatasets();
+      }}>
         <div className="p-6 space-y-4">
           <h2 className="text-xl font-semibold text-black">Upload Files</h2>
           
@@ -383,19 +463,24 @@ const handleImportClick = async () => {
             </label>
             <input 
               type="file" 
-              multiple 
+              multiple={!!selectedDataset}
               onChange={handleFileChange}
-                accept={allowedFileTypes.length > 0 ? allowedFileTypes.join(',') : undefined}
+              accept={allowedFileTypes.length > 0 ? allowedFileTypes.join(',') : undefined}
               className="w-full text-black"
             />
+            {!selectedDataset && (
+              <p className="text-sm text-gray-600">
+                Only one file can be selected for new datasets.
+              </p>
+            )}
             {allowedFileTypes.length > 0 && (
-  <p className="text-sm text-gray-600">
-    Only {allowedFileTypes.join(', ')} files are allowed for this dataset.
-  </p>
-)}
+              <p className="text-sm text-gray-600">
+                Only {allowedFileTypes.join(', ')} files are allowed for this dataset.
+              </p>
+            )}
           </div>
 
-          {files.map((f) => (
+          {files && files.map((f) => (
             <div key={f.id} className="border rounded p-3 bg-gray-50">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-black font-medium">{f.name}</span>
@@ -424,55 +509,6 @@ const handleImportClick = async () => {
               Upload All
             </Button>
           </div>
-        </div>
-      </Dialog>
-
-      {/* Preview Dialog */}
-      <Dialog isOpenDialog={showPreviewDialog} onCloseDialog={() => setShowPreviewDialog(false)}>
-        <div className="p-6 space-y-4">
-          <h2 className="text-xl font-semibold text-black">Preview & Rename Files</h2>
-          
-          {files.map((f, i) => (
-            <div key={f.id} className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                File #{i + 1} Name
-              </label>
-              <input
-                className="w-full px-3 py-2 border border-gray-300 rounded text-black"
-                value={f.name}
-                onChange={(e) =>
-                  setFiles((prev) =>
-                    prev.map((file) =>
-                      file.id === f.id ? { ...file, name: e.target.value } : file
-                    )
-                  )
-                }
-              />
-              <div className="text-sm text-gray-600">
-                Status: <span className="capitalize">{f.status}</span>
-              </div>
-            </div>
-          ))}
-
-          <div className="flex justify-end space-x-2">
-            <Button onClick={() => setShowPreviewDialog(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSavePreview}
-              disabled={!allFilesComplete}
-            >
-              {allFilesComplete ? "Save Dataset" : "Processing..."}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Loading Dialog */}
-      <Dialog isOpenDialog={isUploading} onCloseDialog={() => {}} className="bg-none">
-        <div className="p-6 text-center text-black">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Uploading files... Please wait</p>
         </div>
       </Dialog>
     </div>

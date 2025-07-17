@@ -38,49 +38,78 @@ const mergeChunks = async ({ fileId, folderName, fileName, totalChunks }) => {
   console.log(`✅ Merged: ${finalPath}`);
 };
 
+const updateDatasetStatus = (datasetName) => {
+  if (!datasets[datasetName]) return;
+  
+  // Check if any files in the dataset are still processing
+  const datasetFiles = datasets[datasetName].files;
+  const hasProcessingFiles = datasetFiles.some(file => {
+    const job = jobs[file.id];
+    return job && job.status === "processing";
+  });
+  
+  // Update dataset status
+  datasets[datasetName].status = hasProcessingFiles ? "processing" : "complete";
+  datasets[datasetName].lastUpdated = new Date();
+};
+
 const simulateProcessing = (fileId) => {
   jobs[fileId].status = "processing";
+  
+  const datasetName = jobs[fileId].folder;
+  
+  // Create dataset entry immediately when processing starts
+  if (!datasets[datasetName]) {
+    datasets[datasetName] = {
+      name: datasetName,
+      files: [],
+      data: [],
+      createdAt: new Date(),
+      status: "processing",
+      allowedFileTypes: [],
+      lastUpdated: new Date(),
+    };
+  } else {
+    // Update existing dataset status to processing
+    datasets[datasetName].status = "processing";
+    datasets[datasetName].lastUpdated = new Date();
+  }
 
-  // Simulate processing time
+  // Add file to dataset immediately
+  const fileExtension = path.extname(jobs[fileId].filename).toLowerCase();
+  datasets[datasetName].files.push({
+    id: fileId,
+    name: jobs[fileId].filename,
+    uploadedAt: new Date(),
+    size: "1.2MB", // You can calculate actual size
+    type: fileExtension,
+  });
+  
+  if (datasets[datasetName].allowedFileTypes.length === 0) {
+    datasets[datasetName].allowedFileTypes = [fileExtension];
+  } else if (
+    !datasets[datasetName].allowedFileTypes.includes(fileExtension)
+  ) {
+    datasets[datasetName].allowedFileTypes.push(fileExtension);
+  }
+
+  console.log(`🔄 Processing started for ${fileId} in dataset ${datasetName}`);
+
+  // Simulate processing time (5 minutes = 300000ms)
   setTimeout(() => {
     jobs[fileId].status = "complete";
-
-    // Create dataset entry if it doesn't exist
-    const datasetName = jobs[fileId].folder;
-    if (!datasets[datasetName]) {
-      datasets[datasetName] = {
-        name: datasetName,
-        files: [],
-        data: [],
-        createdAt: new Date(),
-        status: "complete",
-        allowedFileTypes: [],
-      };
-    }
-
-    // Add file to dataset
-    const fileExtension = path.extname(jobs[fileId].filename).toLowerCase();
-    datasets[datasetName].files.push({
-      id: fileId,
-      name: jobs[fileId].filename,
-      uploadedAt: new Date(),
-      size: "1.2MB", // You can calculate actual size
-      type: fileExtension,
-    });
-    if (datasets[datasetName].allowedFileTypes.length === 0) {
-      datasets[datasetName].allowedFileTypes = [fileExtension];
-    } else if (
-      !datasets[datasetName].allowedFileTypes.includes(fileExtension)
-    ) {
-      datasets[datasetName].allowedFileTypes.push(fileExtension);
-    }
+    
     // Simulate parsed data (replace with actual file parsing logic)
     const mockData = generateMockData(jobs[fileId].filename);
     datasets[datasetName].data.push(...mockData);
 
+    // Update dataset status after processing
+    updateDatasetStatus(datasetName);
+
     console.log(`✅ Processing complete for ${fileId}`);
-  }, 3000);
+  }, 300000); // 5 minutes
 };
+
 /* ------------------ Get Dataset File Types ------------------ */
 app.get("/api/datasets/:name/allowed-types", (req, res) => {
   const dataset = datasets[req.params.name];
@@ -88,6 +117,27 @@ app.get("/api/datasets/:name/allowed-types", (req, res) => {
   
   res.json({ allowedFileTypes: dataset.allowedFileTypes });
 });
+
+/* ------------------ Get Dataset Processing Status ------------------ */
+app.get("/api/datasets/:name/status", (req, res) => {
+  const dataset = datasets[req.params.name];
+  if (!dataset) return res.status(404).json({ error: "Dataset not found" });
+  
+  // Check current processing status
+  const datasetFiles = dataset.files;
+  const processingFiles = datasetFiles.filter(file => {
+    const job = jobs[file.id];
+    return job && job.status === "processing";
+  });
+  
+  res.json({
+    status: dataset.status,
+    processingFiles: processingFiles.length,
+    totalFiles: datasetFiles.length,
+    lastUpdated: dataset.lastUpdated
+  });
+});
+
 const generateMockData = (filename) => {
   // Generate mock table data based on filename
   const mockData = [];
@@ -161,13 +211,19 @@ app.get("/status/:fileId", (req, res) => {
 
 /* ------------------ Get All Datasets ------------------ */
 app.get("/api/datasets", (req, res) => {
-  const datasetList = Object.values(datasets).map((dataset) => ({
-    name: dataset.name,
-    fileCount: dataset.files.length,
-    recordCount: dataset.data.length,
-    createdAt: dataset.createdAt,
-    status: dataset.status,
-  }));
+  const datasetList = Object.values(datasets).map((dataset) => {
+    // Update status before sending
+    updateDatasetStatus(dataset.name);
+    
+    return {
+      name: dataset.name,
+      fileCount: dataset.files.length,
+      recordCount: dataset.data.length,
+      createdAt: dataset.createdAt,
+      status: dataset.status,
+      lastUpdated: dataset.lastUpdated,
+    };
+  });
 
   res.json({ datasets: datasetList });
 });
@@ -176,6 +232,9 @@ app.get("/api/datasets", (req, res) => {
 app.get("/api/datasets/:name", (req, res) => {
   const dataset = datasets[req.params.name];
   if (!dataset) return res.status(404).json({ error: "Dataset not found" });
+
+  // Update status before sending
+  updateDatasetStatus(req.params.name);
 
   res.json(dataset);
 });
