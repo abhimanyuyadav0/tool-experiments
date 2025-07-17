@@ -3,8 +3,8 @@ import FileUpload from "./FileUpload";
 
 const FileUploadPage = () => {
   return (
-    <div className="min-h-screen overflow-hidden bg-black">
-      <h1 className="text-xl text-white font-semibold mb-4">
+    <div className="min-h-screen overflow-hidden">
+      <h1 className="text-xl font-semibold mb-4">
         data processing...
       </h1>
       <div className="">
