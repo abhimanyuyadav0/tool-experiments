@@ -96,18 +96,18 @@ const simulateProcessing = (fileId) => {
   console.log(`🔄 Processing started for ${fileId} in dataset ${datasetName}`);
 
   // Simulate processing time (5 minutes = 300000ms)
-  setTimeout(() => {
-    jobs[fileId].status = "complete";
-    
-    // Simulate parsed data (replace with actual file parsing logic)
-    const mockData = generateMockData(jobs[fileId].filename);
-    datasets[datasetName].data.push(...mockData);
+      setTimeout(() => {
+      jobs[fileId].status = "complete";
+      
+      // Simulate parsed data (replace with actual file parsing logic)
+      const mockData = generateMockData(jobs[fileId].filename);
+      datasets[datasetName].data.push(...mockData);
 
-    // Update dataset status after processing
-    updateDatasetStatus(datasetName);
-
-    console.log(`✅ Processing complete for ${fileId}`);
-  }, 300000); // 5 minutes
+      // Update dataset status after processing
+      updateDatasetStatus(datasetName);
+      
+      console.log(`✅ Processing complete for ${fileId}`);
+    }, 300000); // 5 minutes
 };
 
 /* ------------------ Get Dataset File Types ------------------ */
@@ -171,6 +171,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         folder: folder || getExtlessName(originalname),
         status: "initialized",
         progress: 0,
+        startTime: Date.now(), // Track upload+processing start time
       };
     }
 
@@ -191,6 +192,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
       jobs[fileId].status = "uploaded";
       jobs[fileId].progress = 100;
+      
+      // Log upload time only (not processing time)
+      if (jobs[fileId].startTime) {
+        const uploadEndTime = Date.now();
+        const uploadDurationSec = ((uploadEndTime - jobs[fileId].startTime) / 1000).toFixed(2);
+        console.log(`📤 File ${fileId} (${jobs[fileId].filename}) upload time: ${uploadDurationSec} seconds`);
+      }
+      
       simulateProcessing(fileId);
     }
 
