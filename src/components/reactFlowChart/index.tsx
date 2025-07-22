@@ -9,8 +9,8 @@ export default function FlowChart() {
   return (
     <div className="relative w-full h-screen">
       {/* <FlowChartV1 /> */}
-      {/* <FlowChartV2 /> */}
-      <FlowChartV3 />
+      <FlowChartV2 />
+      {/* <FlowChartV3 /> */}
     </div>
   );
 }

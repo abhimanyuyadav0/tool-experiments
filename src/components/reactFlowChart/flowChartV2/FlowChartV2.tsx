@@ -15,11 +15,12 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import TableNode from "../TableNode";
 import { MdDeleteOutline } from "react-icons/md";
+import UserNode from "../UserNode";
 
 const initialNodes: Node[] = [
   {
     id: "users",
-    type: "tableNode",
+    type: "userNode",
     position: { x: 344.4293252250363, y: 278.10975613298007 },
     data: { label: "Users", fields: ["id", "name", "email"] },
   },
@@ -277,7 +278,7 @@ export default function FlowChartV2() {
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onSelectionChange={onSelectionChange}
-        nodeTypes={{ tableNode: TableNode }}
+        nodeTypes={{ tableNode: TableNode, userNode:UserNode }}
         fitView
         selectionOnDrag
       >

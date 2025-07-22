@@ -3,7 +3,9 @@
 # dependencies
 /node_modules
 /backend/node_modules
+/backend/merged/
 /backend/merged_files/
+/backend/routes/generated/
 
 /.pnp
 .pnp.* 
