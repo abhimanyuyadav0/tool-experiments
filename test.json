@@ -1,0 +1,662 @@
+{
+    "success": true,
+    "message": "Database types retrieved successfully",
+    "data": {
+        "database_types": [
+            {
+                "type": "postgresql",
+                "name": "PostgreSQL",
+                "description": "Open source relational database",
+                "default_port": 5432,
+                "supports_ssl": true,
+                "connection_string_template": "postgresql://username:password@host:port/database",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Database server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "5432",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 5432,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "Database server port number"
+                    },
+                    {
+                        "name": "database_name",
+                        "label": "Database Name",
+                        "placeholder": "Enter database name",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Name of the database to connect to"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Database username"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password",
+                        "type": "password",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1
+                        },
+                        "help_text": "Database password"
+                    },
+                    {
+                        "name": "ssl_enabled",
+                        "label": "Enable SSL",
+                        "type": "checkbox",
+                        "is_required": false,
+                        "default_value": false,
+                        "help_text": "Enable SSL/TLS encryption for secure connections"
+                    },
+                    {
+                        "name": "connection_timeout",
+                        "label": "Connection Timeout (seconds)",
+                        "placeholder": "30",
+                        "type": "number",
+                        "is_required": false,
+                        "default_value": 30,
+                        "validation": {
+                            "min": 5,
+                            "max": 300
+                        },
+                        "help_text": "Connection timeout in seconds"
+                    }
+                ]
+            },
+            {
+                "type": "mysql",
+                "name": "MySQL",
+                "description": "Popular open source relational database",
+                "default_port": 3306,
+                "supports_ssl": true,
+                "connection_string_template": "mysql://username:password@host:port/database",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "MySQL server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "3306",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 3306,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "MySQL server port number"
+                    },
+                    {
+                        "name": "database_name",
+                        "label": "Database Name",
+                        "placeholder": "Enter database name",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Name of the MySQL database"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "MySQL username"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password",
+                        "type": "password",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1
+                        },
+                        "help_text": "MySQL password"
+                    },
+                    {
+                        "name": "ssl_enabled",
+                        "label": "Enable SSL",
+                        "type": "checkbox",
+                        "is_required": false,
+                        "default_value": false,
+                        "help_text": "Enable SSL/TLS encryption"
+                    },
+                    {
+                        "name": "connection_timeout",
+                        "label": "Connection Timeout (seconds)",
+                        "placeholder": "30",
+                        "type": "number",
+                        "is_required": false,
+                        "default_value": 30,
+                        "validation": {
+                            "min": 5,
+                            "max": 300
+                        },
+                        "help_text": "Connection timeout in seconds"
+                    }
+                ]
+            },
+            {
+                "type": "mongodb",
+                "name": "MongoDB",
+                "description": "NoSQL document database",
+                "default_port": 27017,
+                "supports_ssl": true,
+                "connection_string_template": "mongodb://username:password@host:port/database",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "MongoDB server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "27017",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 27017,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "MongoDB server port number"
+                    },
+                    {
+                        "name": "database_name",
+                        "label": "Database Name",
+                        "placeholder": "Enter database name",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Name of the MongoDB database"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username (optional)",
+                        "type": "text",
+                        "is_required": false,
+                        "validation": {
+                            "max_length": 255
+                        },
+                        "help_text": "MongoDB username (optional for authentication)"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password (optional)",
+                        "type": "password",
+                        "is_required": false,
+                        "help_text": "MongoDB password (optional for authentication)"
+                    },
+                    {
+                        "name": "mongo_uri",
+                        "label": "MongoDB URI",
+                        "placeholder": "mongodb://username:password@host:port/database",
+                        "type": "textarea",
+                        "is_required": false,
+                        "validation": {
+                            "pattern": "^mongodb://.+",
+                            "max_length": 1000
+                        },
+                        "help_text": "Complete MongoDB connection URI (overrides individual fields)"
+                    },
+                    {
+                        "name": "ssl_enabled",
+                        "label": "Enable SSL",
+                        "type": "checkbox",
+                        "is_required": false,
+                        "default_value": false,
+                        "help_text": "Enable SSL/TLS encryption"
+                    }
+                ]
+            },
+            {
+                "type": "sqlite",
+                "name": "SQLite",
+                "description": "Lightweight file-based database",
+                "default_port": null,
+                "supports_ssl": false,
+                "connection_string_template": "sqlite:///database_name",
+                "fields": [
+                    {
+                        "name": "database_name",
+                        "label": "Database File Path",
+                        "placeholder": "Enter database file path (e.g., /path/to/database.db)",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 500
+                        },
+                        "help_text": "Full path to the SQLite database file"
+                    }
+                ]
+            },
+            {
+                "type": "oracle",
+                "name": "Oracle Database",
+                "description": "Enterprise relational database",
+                "default_port": 1521,
+                "supports_ssl": true,
+                "connection_string_template": "oracle://username:password@host:port/database",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Oracle server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "1521",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 1521,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "Oracle server port number"
+                    },
+                    {
+                        "name": "database_name",
+                        "label": "Service Name/SID",
+                        "placeholder": "Enter service name or SID",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Oracle service name or SID"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Oracle username"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password",
+                        "type": "password",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1
+                        },
+                        "help_text": "Oracle password"
+                    },
+                    {
+                        "name": "ssl_enabled",
+                        "label": "Enable SSL",
+                        "type": "checkbox",
+                        "is_required": false,
+                        "default_value": false,
+                        "help_text": "Enable SSL/TLS encryption"
+                    }
+                ]
+            },
+            {
+                "type": "mssql",
+                "name": "Microsoft SQL Server",
+                "description": "Microsoft's relational database",
+                "default_port": 1433,
+                "supports_ssl": true,
+                "connection_string_template": "mssql://username:password@host:port/database",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "SQL Server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "1433",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 1433,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "SQL Server port number"
+                    },
+                    {
+                        "name": "database_name",
+                        "label": "Database Name",
+                        "placeholder": "Enter database name",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Name of the SQL Server database"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "SQL Server username"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password",
+                        "type": "password",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1
+                        },
+                        "help_text": "SQL Server password"
+                    },
+                    {
+                        "name": "ssl_enabled",
+                        "label": "Enable SSL",
+                        "type": "checkbox",
+                        "is_required": false,
+                        "default_value": false,
+                        "help_text": "Enable SSL/TLS encryption"
+                    }
+                ]
+            },
+            {
+                "type": "redis",
+                "name": "Redis",
+                "description": "In-memory data structure store",
+                "default_port": 6379,
+                "supports_ssl": true,
+                "connection_string_template": "redis://username:password@host:port",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Redis server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "6379",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 6379,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "Redis server port number"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username (optional)",
+                        "type": "text",
+                        "is_required": false,
+                        "validation": {
+                            "max_length": 255
+                        },
+                        "help_text": "Redis username (optional for Redis 6+ ACL)"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password (optional)",
+                        "type": "password",
+                        "is_required": false,
+                        "help_text": "Redis password (optional)"
+                    },
+                    {
+                        "name": "redis_url",
+                        "label": "Redis URL",
+                        "placeholder": "redis://username:password@host:port",
+                        "type": "textarea",
+                        "is_required": false,
+                        "validation": {
+                            "pattern": "^redis://.+",
+                            "max_length": 1000
+                        },
+                        "help_text": "Complete Redis connection URL (overrides individual fields)"
+                    }
+                ]
+            },
+            {
+                "type": "cassandra",
+                "name": "Apache Cassandra",
+                "description": "Wide-column NoSQL database",
+                "default_port": 9042,
+                "supports_ssl": true,
+                "connection_string_template": "cassandra://host:port",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Cassandra server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "9042",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 9042,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "Cassandra server port number"
+                    },
+                    {
+                        "name": "cassandra_keyspace",
+                        "label": "Keyspace",
+                        "placeholder": "Enter keyspace name",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Cassandra keyspace name"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username (optional)",
+                        "type": "text",
+                        "is_required": false,
+                        "validation": {
+                            "max_length": 255
+                        },
+                        "help_text": "Cassandra username (optional for authentication)"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password (optional)",
+                        "type": "password",
+                        "is_required": false,
+                        "help_text": "Cassandra password (optional for authentication)"
+                    }
+                ]
+            },
+            {
+                "type": "elasticsearch",
+                "name": "Elasticsearch",
+                "description": "Search and analytics engine",
+                "default_port": 9200,
+                "supports_ssl": true,
+                "connection_string_template": "http://host:port",
+                "fields": [
+                    {
+                        "name": "host",
+                        "label": "Host",
+                        "placeholder": "Enter hostname or IP address",
+                        "type": "text",
+                        "is_required": true,
+                        "validation": {
+                            "pattern": "^[a-zA-Z0-9.-]+$",
+                            "min_length": 1,
+                            "max_length": 255
+                        },
+                        "help_text": "Elasticsearch server hostname or IP address"
+                    },
+                    {
+                        "name": "port",
+                        "label": "Port",
+                        "placeholder": "9200",
+                        "type": "number",
+                        "is_required": true,
+                        "default_value": 9200,
+                        "validation": {
+                            "min": 1,
+                            "max": 65535
+                        },
+                        "help_text": "Elasticsearch server port number"
+                    },
+                    {
+                        "name": "username",
+                        "label": "Username",
+                        "placeholder": "Enter username (optional)",
+                        "type": "text",
+                        "is_required": false,
+                        "validation": {
+                            "max_length": 255
+                        },
+                        "help_text": "Elasticsearch username (optional for authentication)"
+                    },
+                    {
+                        "name": "password",
+                        "label": "Password",
+                        "placeholder": "Enter password (optional)",
+                        "type": "password",
+                        "is_required": false,
+                        "help_text": "Elasticsearch password (optional for authentication)"
+                    },
+                    {
+                        "name": "elastic_url",
+                        "label": "Elasticsearch URL",
+                        "placeholder": "http://host:port",
+                        "type": "textarea",
+                        "is_required": false,
+                        "validation": {
+                            "pattern": "^https?://.+",
+                            "max_length": 1000
+                        },
+                        "help_text": "Complete Elasticsearch connection URL (overrides individual fields)"
+                    }
+                ]
+            }
+        ]
+    },
+    "timestamp": "2025-07-21T10:23:54.929870",
+    "status_code": 200
+}

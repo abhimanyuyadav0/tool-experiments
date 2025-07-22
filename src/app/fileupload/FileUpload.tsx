@@ -74,16 +74,24 @@ export default function ImportPage() {
 
   const uploadSingleFile = async (uploadFile: UploadFile) => {
     const { file, id, name } = uploadFile;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("fileId", id);
-    formData.append("originalname", name);
-    formData.append("folder", datasetName);
     setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "uploading", progress: 0 } : f));
 
+    // 1. Get presigned URL from backend
+    const presignRes = await fetch("http://localhost:8000/get-presigned-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: name,
+        folder: datasetName,
+        contentType: file.type,
+      }),
+    });
+    const { url, key } = await presignRes.json();
+
+    // 2. Upload file to S3 with progress
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", "http://localhost:8000/upload");
+      xhr.open("PUT", url);
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           const percent = (event.loaded / event.total) * 100;
@@ -98,7 +106,20 @@ export default function ImportPage() {
         setFiles((prev) => prev.map((f) => f.id === id ? { ...f, status: "error" } : f));
         reject();
       };
-      xhr.send(formData);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.send(file);
+    });
+
+    // 3. Notify backend to process the file from S3
+    await fetch("http://localhost:8000/process-s3-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileId: id,
+        originalname: name,
+        folder: datasetName,
+        s3Key: key,
+      }),
     });
   };
 
@@ -256,8 +277,28 @@ export default function ImportPage() {
       case 'complete': return 'bg-green-600';
       case 'processing': return 'bg-yellow-600';
       case 'error': return 'bg-red-600';
+      case 'failed': return 'bg-red-600';
       default: return 'bg-gray-600';
     }
+  };
+
+  const retryDataset = async (dataset: any) => {
+    if (!dataset.files) return;
+    for (const file of dataset.files) {
+      if (file.status === 'error') {
+        await fetch('http://localhost:8000/process-s3-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileId: file.id,
+            originalname: file.name,
+            folder: dataset.name,
+            s3Key: file.s3Key,
+          }),
+        });
+      }
+    }
+    await loadDatasets();
   };
 
   return (
@@ -382,8 +423,13 @@ export default function ImportPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 rounded text-xs ${getStatusColor(dataset.status)}`}>
-                            {dataset.status}
+                            {dataset.status === 'error' ? 'Failed' : dataset.status}
                           </span>
+                          {dataset.status === 'error' && (
+                            <Button size="xs" onClick={() => retryDataset(dataset)}>
+                              Retry
+                            </Button>
+                          )}
                         </div>
                       </div>
                       

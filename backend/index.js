@@ -3,6 +3,16 @@ const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+const { S3Client, PutObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+const S3_BUCKET = process.env.AWS_S3_BUCKET;
 
 const app = express();
 const PORT = 8000;
@@ -53,12 +63,9 @@ const updateDatasetStatus = (datasetName) => {
   datasets[datasetName].lastUpdated = new Date();
 };
 
-const simulateProcessing = (fileId) => {
+const simulateProcessing = (fileId, fromS3 = false) => {
   jobs[fileId].status = "processing";
-  
   const datasetName = jobs[fileId].folder;
-  
-  // Create dataset entry immediately when processing starts
   if (!datasets[datasetName]) {
     datasets[datasetName] = {
       name: datasetName,
@@ -70,44 +77,34 @@ const simulateProcessing = (fileId) => {
       lastUpdated: new Date(),
     };
   } else {
-    // Update existing dataset status to processing
     datasets[datasetName].status = "processing";
     datasets[datasetName].lastUpdated = new Date();
   }
-
-  // Add file to dataset immediately
-  const fileExtension = path.extname(jobs[fileId].filename).toLowerCase();
+  const fileExtension = jobs[fileId].filename.split('.').pop()?.toLowerCase() || '';
   datasets[datasetName].files.push({
     id: fileId,
     name: jobs[fileId].filename,
     uploadedAt: new Date(),
-    size: "1.2MB", // You can calculate actual size
+    size: "1.2MB",
     type: fileExtension,
+    s3Key: jobs[fileId].s3Key,
+    status: jobs[fileId].status,
   });
-  
   if (datasets[datasetName].allowedFileTypes.length === 0) {
     datasets[datasetName].allowedFileTypes = [fileExtension];
-  } else if (
-    !datasets[datasetName].allowedFileTypes.includes(fileExtension)
-  ) {
+  } else if (!datasets[datasetName].allowedFileTypes.includes(fileExtension)) {
     datasets[datasetName].allowedFileTypes.push(fileExtension);
   }
-
-  console.log(`🔄 Processing started for ${fileId} in dataset ${datasetName}`);
-
-  // Simulate processing time (5 minutes = 300000ms)
-      setTimeout(() => {
-      jobs[fileId].status = "complete";
-      
-      // Simulate parsed data (replace with actual file parsing logic)
-      const mockData = generateMockData(jobs[fileId].filename);
-      datasets[datasetName].data.push(...mockData);
-
-      // Update dataset status after processing
-      updateDatasetStatus(datasetName);
-      
-      console.log(`✅ Processing complete for ${fileId}`);
-    }, 300000); // 5 minutes
+  console.log(`🔄 Processing started for ${fileId} in dataset ${datasetName} (fromS3=${fromS3})`);
+  setTimeout(() => {
+    jobs[fileId].status = "complete";
+    datasets[datasetName].status = "complete";
+    datasets[datasetName].lastUpdated = new Date();
+    // Update file status in dataset.files
+    const fileObj = datasets[datasetName].files.find(f => f.id === fileId);
+    if (fileObj) fileObj.status = "complete";
+    console.log(`✅ Processing complete for ${fileId}`);
+  }, 300000); // 5 minutes
 };
 
 /* ------------------ Get Dataset File Types ------------------ */
@@ -197,6 +194,55 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     console.error("❌ Upload failed:", error);
     if (req.body.fileId) jobs[req.body.fileId].status = "error";
     res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+// Endpoint to get a presigned URL for S3 upload
+app.post('/get-presigned-url', async (req, res) => {
+  try {
+    const { filename, folder, contentType } = req.body;
+    const key = `${folder}/${filename}`;
+    const command = new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      ContentType: contentType,
+    });
+    const url = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5 min
+    res.json({ url, key });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get presigned URL' });
+  }
+});
+
+// Endpoint to trigger processing after S3 upload
+app.post('/process-s3-file', async (req, res) => {
+  try {
+    const { fileId, originalname, folder, s3Key } = req.body;
+
+    // Check if file exists in S3
+    try {
+      await s3.send(new HeadObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: s3Key,
+      }));
+    } catch (err) {
+      // File does not exist
+      return res.status(400).json({ error: 'File not uploaded to S3' });
+    }
+
+    // Register job and process
+    jobs[fileId] = {
+      filename: originalname,
+      folder: folder,
+      status: 'uploaded',
+      progress: 100,
+      s3Key,
+      startTime: Date.now(),
+    };
+    simulateProcessing(fileId, true);
+    res.json({ message: 'Processing started' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start processing' });
   }
 });
 
