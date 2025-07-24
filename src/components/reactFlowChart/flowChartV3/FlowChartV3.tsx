@@ -68,6 +68,8 @@ export default function FlowChartV3() {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [modalNode, setModalNode] = useState<Node | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<'vertical' | 'horizontal' | 'grid'>('vertical');
+  const [customPositions] = useState(new Set<string>());
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
@@ -169,6 +171,23 @@ export default function FlowChartV3() {
               </button>
             </>
           )}
+        </div>
+        
+        <div className="flex gap-1 mt-2">
+          <span className="text-xs text-gray-600">Layout:</span>
+          {(['vertical', 'horizontal', 'grid'] as const).map(mode => (
+            <button
+              key={mode}
+              className={`px-2 py-1 rounded text-xs ${
+                layoutMode === mode 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={() => setLayoutMode(mode)}
+            >
+              {mode}
+            </button>
+          ))}
         </div>
       </div>
 
