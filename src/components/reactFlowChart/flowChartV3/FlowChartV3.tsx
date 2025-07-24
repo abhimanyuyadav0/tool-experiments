@@ -125,6 +125,151 @@ export default function FlowChartV3() {
     }
   }, [selectedNode, setNodes]);
 
+  // Auto-fit group size to children
+  useEffect(() => {
+    let changed = false;
+    const newNodes = nodes.map((group) => {
+      if (group.type !== "group") return group;
+      const children = nodes.filter((n) => n.parentId === group.id);
+      if (!children.length) return group;
+      const xs = children.map((n) => n.position.x);
+      const ys = children.map((n) => n.position.y);
+      const ws = children.map((n) => n.width || 180);
+      const hs = children.map((n) => n.height || 80);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs.map((x, i) => x + ws[i]));
+      const maxY = Math.max(...ys.map((y, i) => y + hs[i]));
+      const pad = 40;
+      const minWidth = Math.max(...ws) + pad * 2;
+      const minHeight = Math.max(...hs) + pad * 2;
+      const neededWidth = Math.max(maxX - minX + pad * 2, minWidth);
+      const neededHeight = Math.max(maxY - minY + pad * 2, minHeight);
+      let style = { ...group.style };
+      let groupChanged = false;
+      if (Number(style.width ?? 400) !== neededWidth) {
+        style.width = neededWidth;
+        groupChanged = true;
+      }
+      if (Number(style.height ?? 400) !== neededHeight) {
+        style.height = neededHeight;
+        groupChanged = true;
+      }
+      if (groupChanged) {
+        changed = true;
+        return { ...group, style };
+      }
+      return group;
+    });
+    if (changed) setNodes(newNodes);
+  }, [nodes, setNodes]);
+
+  // Smart auto-align to minimize edge crossings and avoid overlaps
+  useEffect(() => {
+    setNodes(nds => {
+      let changed = false;
+      let newNodes = [...nds];
+      // Build a map of table id to connection count (degree)
+      const degree: Record<string, number> = {};
+      edges.forEach(edge => {
+        degree[edge.source] = (degree[edge.source] || 0) + 1;
+        degree[edge.target] = (degree[edge.target] || 0) + 1;
+      });
+      // For each group node
+      nds.filter(n => n.type === 'group').forEach(group => {
+        // Only auto-align tables that are not custom positioned
+        const children = newNodes.filter(n => n.parentId === group.id && !customPositions.has(n.id));
+        if (children.length > 0) {
+          // Build a set of occupied positions (stringified)
+          const occupied = new Set<string>();
+          // Sort by degree (most connected first)
+          const sorted = [...children].sort((a, b) => (degree[b.id] || 0) - (degree[a.id] || 0));
+          // Try to align cross-group edges: for each cross-group edge, align y of source and target
+          const crossEdges = edges.filter(e => {
+            const src = nds.find(n => n.id === e.source);
+            const tgt = nds.find(n => n.id === e.target);
+            return src && tgt && src.parentId !== tgt.parentId && (src.parentId === group.id || tgt.parentId === group.id);
+          });
+          // Map: table id -> y to align
+          const alignY: Record<string, number> = {};
+          crossEdges.forEach(e => {
+            const src = nds.find(n => n.id === e.source);
+            const tgt = nds.find(n => n.id === e.target);
+            if (src && tgt) {
+              if (src.parentId === group.id) alignY[src.id] = tgt.position.y;
+              if (tgt.parentId === group.id) alignY[tgt.id] = src.position.y;
+            }
+          });
+          // Layout with collision detection
+          if (layoutMode === 'vertical') {
+            const startY = 40;
+            const gap = 180;
+            sorted.forEach((child, i) => {
+              let newY = startY + i * gap;
+              if (alignY[child.id] !== undefined) newY = alignY[child.id];
+              // Find next free slot if needed
+              while (occupied.has(`40,${newY}`)) newY += gap;
+              occupied.add(`40,${newY}`);
+              if (child.position.y !== newY) {
+                changed = true;
+                child.position = { ...child.position, y: newY };
+              }
+              if (child.position.x !== 40) {
+                changed = true;
+                child.position = { ...child.position, x: 40 };
+              }
+            });
+          } else if (layoutMode === 'horizontal') {
+            const startX = 40;
+            const gap = 260;
+            sorted.forEach((child, i) => {
+              let newX = startX + i * gap;
+              if (alignY[child.id] !== undefined) newX = alignY[child.id];
+              while (occupied.has(`${newX},40`)) newX += gap;
+              occupied.add(`${newX},40`);
+              if (child.position.x !== newX) {
+                changed = true;
+                child.position = { ...child.position, x: newX };
+              }
+              if (child.position.y !== 40) {
+                changed = true;
+                child.position = { ...child.position, y: 40 };
+              }
+            });
+          } else if (layoutMode === 'grid') {
+            const cols = 2;
+            const gapX = 260;
+            const gapY = 180;
+            sorted.forEach((child, i) => {
+              let col = i % cols;
+              let row = Math.floor(i / cols);
+              let newX = 40 + col * gapX;
+              let newY = 40 + row * gapY;
+              if (alignY[child.id] !== undefined) newY = alignY[child.id];
+              // Find next free slot if needed
+              while (occupied.has(`${newX},${newY}`)) {
+                col++;
+                if (col >= cols) { col = 0; row++; }
+                newX = 40 + col * gapX;
+                newY = 40 + row * gapY;
+              }
+              occupied.add(`${newX},${newY}`);
+              if (child.position.x !== newX) {
+                changed = true;
+                child.position = { ...child.position, x: newX };
+              }
+              if (child.position.y !== newY) {
+                changed = true;
+                child.position = { ...child.position, y: newY };
+              }
+            });
+          }
+        }
+      });
+      return changed ? [...newNodes] : nds;
+    });
+  }, [nodes, edges, layoutMode, customPositions]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === "Delete" || e.key === "Backspace") && selectedEdges.length) {
